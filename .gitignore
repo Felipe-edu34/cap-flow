@@ -1,0 +1,18 @@
+# Ambiente Virtual (NUNCA envie isso para o GitHub)
+venv/
+.venv/
+env/
+
+# Banco de dados local (Evita enviar seus dados de teste e senhas)
+*.sqlite3
+db.sqlite3
+
+# Arquivos temporários do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configurações do VS Code ou do sistema operacional
+.vscode/
+.DS_Store
+Thumbs.db
