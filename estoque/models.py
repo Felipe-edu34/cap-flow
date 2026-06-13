@@ -1,12 +1,25 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+# --- NOVA TABELA PARA MULTI-EMPRESAS ---
+class Empresa(models.Model):
+    nome_fantasia = models.CharField(max_length=150)
+    cnpj = models.CharField(max_length=18, unique=True, blank=True, null=True)
+    dono = models.OneToOneField(User, on_delete=models.CASCADE, related_name='empresa_administrada')
+
+    def __str__(self):
+        return self.nome_fantasia
+
+
 class Setor(models.Model):
+    # EVOLUÇÃO: Cada empresa cria e enxerga apenas os seus próprios setores!
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='setores', null=True, blank=True)
     nome = models.CharField(max_length=100, help_text="Ex: Tecidos, Fios, Abas")
     responsaveis = models.ManyToManyField(User, related_name='setores_permitidos', blank=True)
 
     def __str__(self):
-        return self.nome
+        return f"{self.nome} - {self.empresa.nome_fantasia if self.empresa else 'Geral'}"
+
 
 class ItemEstoque(models.Model):
     UNIDADES_CHOICES = [
@@ -26,6 +39,7 @@ class ItemEstoque(models.Model):
     def __str__(self):
         return f"{self.nome} ({self.quantidade_atual} {self.unidade_medida})"
 
+
 class Movimentacao(models.Model):
     TIPO_CHOICES = [
         ('ENTRADA', 'Entrada (+)'),
@@ -40,4 +54,4 @@ class Movimentacao(models.Model):
     observacao = models.TextField(blank=True, null=True, help_text="Ex: Tecido veio com defeito")
 
     def __str__(self):
-        return f"{self.tipo} de {self.quantidade_movimentada} em {self.item.nome} por {self.usuario.username if self.usuario else 'Desconhecido'}"
+        return f"{self.tipo} de {self.quantidade_movimentada} em {item.nome}"
