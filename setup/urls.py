@@ -15,9 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include # Adicionamos o include aqui
+from django.urls import path, include
+from rest_framework.authtoken.views import obtain_auth_token # <--- Importe isso
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include('estoque.urls')), # Conecta nossa API
+    path('admin/', admin.site.site_path if hasattr(admin.site, 'site_path') else admin.site.urls),
+    path('api/', include('estoque.urls')), # Suas rotas atuais do estoque
+    path('api/token/', obtain_auth_token), # <--- Nova rota para o App fazer Login!
 ]
