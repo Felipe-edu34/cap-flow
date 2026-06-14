@@ -5,16 +5,12 @@ from .serializers import ItemEstoqueSerializer, MovimentacaoSerializer
 
 class ItemEstoqueViewSet(viewsets.ModelViewSet):
     serializer_class = ItemEstoqueSerializer
-    # Garante que só quem está logado no app pode acessar
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-        # Se for o patrão/admin, ele vê tudo!
         if user.is_staff:
             return ItemEstoque.objects.all()
-        
-        # Se for funcionário, o Django busca os setores onde ele foi colocado como responsável
         return ItemEstoque.objects.filter(setor__responsaveis=user)
 
 class MovimentacaoViewSet(viewsets.ModelViewSet):
@@ -22,6 +18,18 @@ class MovimentacaoViewSet(viewsets.ModelViewSet):
     serializer_class = MovimentacaoSerializer
     permission_classes = [IsAuthenticated]
 
-    # Quando o funcionário registrar uma movimentação no celular, salvamos automaticamente o ID dele
     def perform_create(self, serializer):
-        serializer.save(usuario=self.request.user)
+        # 1. Salva o histórico e pega quem fez
+        movimentacao = serializer.save(usuario=self.request.user)
+        
+        # 2. Pega o item que está sendo modificado
+        item = movimentacao.item
+        
+        # 3. Faz a matemática segura direto no Banco de Dados
+        if movimentacao.tipo == 'ENTRADA':
+            item.quantidade_atual += movimentacao.quantidade_movimentada
+        elif movimentacao.tipo == 'SAIDA':
+            item.quantidade_atual -= movimentacao.quantidade_movimentada
+            
+        # 4. Salva o novo saldo do item
+        item.save()

@@ -1,19 +1,30 @@
 from django.contrib import admin
-from .models import Setor, ItemEstoque, Movimentacao
+from .models import Empresa, Setor, ItemEstoque, Movimentacao
 
-# O @admin.register "conecta" a nossa tabela com o painel visual
+# --- REGISTRO DA NOVA TABELA DE EMPRESAS ---
+@admin.register(Empresa)
+class EmpresaAdmin(admin.ModelAdmin):
+    # Mostra o nome da empresa, CNPJ e quem é o usuário dono/administrador dela
+    list_display = ('nome_fantasia', 'cnpj', 'dono')
+    search_fields = ('nome_fantasia', 'cnpj')
+
+
+# --- ATUALIZAÇÃO DO SETOR (AMARRADO À EMPRESA) ---
 @admin.register(Setor)
 class SetorAdmin(admin.ModelAdmin):
-    # list_display diz quais colunas vão aparecer na tela inicial do painel
-    list_display = ('nome',)
+    # Agora exibe o nome do setor e qual empresa é a dona dele
+    list_display = ('nome', 'empresa')
+    # Cria um filtro lateral para você ver os setores de uma empresa específica
+    list_filter = ('empresa',)
+    search_fields = ('nome',)
+
 
 @admin.register(ItemEstoque)
 class ItemEstoqueAdmin(admin.ModelAdmin):
     list_display = ('nome', 'setor', 'quantidade_atual', 'unidade_medida')
-    # list_filter cria um menu lateral direito para o patrão filtrar os itens por setor
     list_filter = ('setor',)
-    # search_fields cria uma barra de pesquisa no topo
     search_fields = ('nome',)
+
 
 @admin.register(Movimentacao)
 class MovimentacaoAdmin(admin.ModelAdmin):
