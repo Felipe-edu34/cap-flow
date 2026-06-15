@@ -31,6 +31,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -122,3 +123,22 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 CORS_ALLOW_ALL_ORIGINS = True # Permite que o app web/mobile se conecte à API
+
+JAZZMIN_SETTINGS = {
+    "site_title": "CapFlow Admin",
+    "site_header": "CapFlow",
+    "site_brand": "CapFlow Gestão",
+    "welcome_sign": "Bem-vindo ao Painel de Controle do CapFlow",
+    "copyright": "CapFlow Bonelaria Ltd",
+    "search_model": ["auth.User", "estoque.ItemEstoque"],
+    "show_sidebar": True,
+    "navigation_expanded": True,
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.TokenAuthentication',  # <--- A MÁGICA ESTÁ NESTA LINHA
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ),
+}
