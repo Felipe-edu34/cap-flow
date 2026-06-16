@@ -35,15 +35,17 @@ class Setor(models.Model):
         return f"{self.nome} - {self.empresa.nome_fantasia}"
 
 # 4. O ITEM DE ESTOQUE (Pertence ao Setor, que pertence à Empresa)
+# Procure pelo seu modelo ItemEstoque e deixe-o assim:
 class ItemEstoque(models.Model):
-    # ... (seus campos antigos: nome, quantidade_atual, etc) ...
     nome = models.CharField(max_length=100)
     quantidade_atual = models.IntegerField(default=0)
     unidade_medida = models.CharField(max_length=10, default='UN')
     estoque_minimo = models.IntegerField(default=0)
     setor = models.ForeignKey('Setor', on_delete=models.CASCADE)
     
-    # NOVO CAMPO: null=True e blank=True significam que a foto é opcional
+    # ADICIONE ESTE CAMPO para receber o gerenteId do formulário do frontend
+    gerente = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
     imagem = models.ImageField(upload_to='produtos/', null=True, blank=True) 
 
     def __str__(self):

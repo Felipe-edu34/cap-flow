@@ -130,6 +130,25 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         else:
             # Funcionário vê apenas os itens dos setores onde ele é o responsável
             return ItemEstoque.objects.filter(setor__empresa=perfil.empresa, setor__responsavel=user)
+    
+    def perform_create(self, serializer):
+        user = self.request.user
+        
+        # Super-usuários pulam a validação de empresa
+        if user.is_superuser:
+            serializer.save()
+            return
+
+        perfil = user.perfil
+        # Pega o objeto do setor que o formulário está tentando associar
+        setor_alvo = serializer.validated_data.get('setor')
+
+        # TRAVA DE SEGURANÇA: Se o setor não for da empresa do usuário logado, barra a operação!
+        if setor_alvo.empresa != perfil.empresa:
+            raise PermissionDenied("Operação violada: Você não pode cadastrar um produto em um setor de outra empresa.")
+
+        # Tudo certo! Salva o produto amarrando o gerente logado se o form não mandou um específico
+        serializer.save()
 
 class MovimentacaoViewSet(viewsets.ModelViewSet):
     serializer_class = MovimentacaoSerializer

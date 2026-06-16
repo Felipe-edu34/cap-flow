@@ -14,6 +14,16 @@ class SetorSerializer(serializers.ModelSerializer):
 
 class ItemEstoqueSerializer(serializers.ModelSerializer):
     setor_nome = serializers.CharField(source='setor.nome', read_only=True)
+    # Traz o nome do gerente mapeado também para a ficha técnica do modal se precisar
+    gerente_nome = serializers.CharField(source='gerente.username', read_only=True)
+
+    class Meta:
+        model = ItemEstoque
+        # Adicione 'gerente' e 'gerente_nome' na lista de campos
+        fields = [
+            'id', 'nome', 'quantidade_atual', 'unidade_medida', 
+            'estoque_minimo', 'setor', 'setor_nome', 'gerente', 'gerente_nome', 'imagem'
+        ]
 
     class Meta:
         model = ItemEstoque
