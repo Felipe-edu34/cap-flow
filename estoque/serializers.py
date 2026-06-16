@@ -25,10 +25,6 @@ class ItemEstoqueSerializer(serializers.ModelSerializer):
             'estoque_minimo', 'setor', 'setor_nome', 'gerente', 'gerente_nome', 'imagem'
         ]
 
-    class Meta:
-        model = ItemEstoque
-        fields = ['id', 'nome', 'quantidade_atual', 'unidade_medida', 'estoque_minimo', 'setor', 'setor_nome', 'imagem']
-
 class MovimentacaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movimentacao
