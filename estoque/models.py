@@ -36,11 +36,15 @@ class Setor(models.Model):
 
 # 4. O ITEM DE ESTOQUE (Pertence ao Setor, que pertence à Empresa)
 class ItemEstoque(models.Model):
-    setor = models.ForeignKey(Setor, on_delete=models.CASCADE, related_name='itens')
-    nome = models.CharField(max_length=150)
-    quantidade_atual = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    unidade_medida = models.CharField(max_length=10) # Ex: UN, KG, CX
-    estoque_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    # ... (seus campos antigos: nome, quantidade_atual, etc) ...
+    nome = models.CharField(max_length=100)
+    quantidade_atual = models.IntegerField(default=0)
+    unidade_medida = models.CharField(max_length=10, default='UN')
+    estoque_minimo = models.IntegerField(default=0)
+    setor = models.ForeignKey('Setor', on_delete=models.CASCADE)
+    
+    # NOVO CAMPO: null=True e blank=True significam que a foto é opcional
+    imagem = models.ImageField(upload_to='produtos/', null=True, blank=True) 
 
     def __str__(self):
         return self.nome

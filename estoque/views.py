@@ -1,7 +1,43 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView # <-- NOVA IMPORTAÇÃO
+from rest_framework.response import Response # <-- NOVA IMPORTAÇÃO
 from .models import ItemEstoque, Movimentacao
 from .serializers import ItemEstoqueSerializer, MovimentacaoSerializer
+
+# ... (MANTENHA SUAS CLASSES ItemEstoqueViewSet e MovimentacaoViewSet AQUI) ...
+
+# --- NOVA ROTA DE IDENTIDADE ---
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+        # 1. Se for você (Dono do sistema), passamos um perfil especial
+        if user.is_superuser:
+            return Response({
+                "username": user.username,
+                "cargo": "DONO",
+                "empresa": "Administração CapFlow",
+            })
+            
+        # 2. Se for um cliente (Gerente ou Funcionário), buscamos o perfil dele
+        try:
+            perfil = user.perfil
+            return Response({
+                "username": user.username,
+                "cargo": perfil.cargo,
+                "empresa": perfil.empresa.nome_fantasia,
+            })
+        except:
+            # 3. Se for um usuário "solto" sem perfil, retorna erro
+            return Response({
+                "error": "Este usuário não possui um perfil ou empresa vinculada."
+            }, status=400)
+
+
+
 
 class ItemEstoqueViewSet(viewsets.ModelViewSet):
     serializer_class = ItemEstoqueSerializer
@@ -9,27 +45,52 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        
+        # 1. Se for o Dono do Sistema (Você), vê todos os itens de todas as empresas
+        if user.is_superuser:
             return ItemEstoque.objects.all()
-        return ItemEstoque.objects.filter(setor__responsaveis=user)
+            
+        # 2. Tenta descobrir a qual empresa esse usuário pertence
+        try:
+            perfil = user.perfil
+        except:
+            # Se ele não tem Perfil cadastrado, devolve uma lista vazia por segurança
+            return ItemEstoque.objects.none()
+
+        # 3. A Regra de Ouro do SaaS
+        if perfil.cargo == 'GERENTE':
+            # Gerente vê todos os itens da PRÓPRIA empresa (ignora de outras empresas)
+            return ItemEstoque.objects.filter(setor__empresa=perfil.empresa)
+        else:
+            # Funcionário vê apenas os itens dos setores onde ele é o responsável
+            return ItemEstoque.objects.filter(setor__empresa=perfil.empresa, setor__responsavel=user)
 
 class MovimentacaoViewSet(viewsets.ModelViewSet):
-    queryset = Movimentacao.objects.all()
     serializer_class = MovimentacaoSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        # Filtra para o usuário não conseguir ver o histórico de movimentação de outras empresas
+        user = self.request.user
+        if user.is_superuser:
+            return Movimentacao.objects.all()
+        try:
+            return Movimentacao.objects.filter(item__setor__empresa=user.perfil.empresa)
+        except:
+            return Movimentacao.objects.none()
+
     def perform_create(self, serializer):
-        # 1. Salva o histórico e pega quem fez
-        movimentacao = serializer.save(usuario=self.request.user)
+        # 1. Salva a movimentação nova
+        movimentacao = serializer.save()
         
         # 2. Pega o item que está sendo modificado
         item = movimentacao.item
         
-        # 3. Faz a matemática segura direto no Banco de Dados
+        # 3. Faz a matemática segura direto no banco
         if movimentacao.tipo == 'ENTRADA':
             item.quantidade_atual += movimentacao.quantidade_movimentada
         elif movimentacao.tipo == 'SAIDA':
             item.quantidade_atual -= movimentacao.quantidade_movimentada
             
-        # 4. Salva o novo saldo do item
+        # 4. Salva o novo saldo
         item.save()
