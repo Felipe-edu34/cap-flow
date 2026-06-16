@@ -1,9 +1,10 @@
 from rest_framework import viewsets
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView # <-- NOVA IMPORTAÇÃO
 from rest_framework.response import Response # <-- NOVA IMPORTAÇÃO
-from .models import ItemEstoque, Movimentacao
-from .serializers import ItemEstoqueSerializer, MovimentacaoSerializer
+from .models import Setor, ItemEstoque, Movimentacao
+from .serializers import SetorSerializer, ItemEstoqueSerializer, MovimentacaoSerializer
 
 # ... (MANTENHA SUAS CLASSES ItemEstoqueViewSet e MovimentacaoViewSet AQUI) ...
 
@@ -37,6 +38,71 @@ class UserProfileView(APIView):
             }, status=400)
 
 
+
+
+class SetorViewSet(viewsets.ModelViewSet):
+    serializer_class = SetorSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _get_perfil(self):
+        try:
+            return self.request.user.perfil
+        except:
+            raise PermissionDenied("Este usuário não possui um perfil vinculado.")
+
+    def _validar_permissao_gerente(self):
+        perfil = self._get_perfil()
+
+        if perfil.cargo != 'GERENTE':
+            raise PermissionDenied("Apenas gerentes podem cadastrar ou alterar setores.")
+
+        return perfil
+
+    def _validar_responsavel(self, responsavel, empresa):
+        if responsavel is None:
+            return
+
+        try:
+            perfil_responsavel = responsavel.perfil
+        except:
+            raise PermissionDenied("O responsável informado não possui um perfil vinculado.")
+
+        if perfil_responsavel.empresa != empresa:
+            raise PermissionDenied("O responsável precisa pertencer à mesma empresa do gerente.")
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.is_superuser:
+            return Setor.objects.all()
+
+        try:
+            perfil = user.perfil
+        except:
+            return Setor.objects.none()
+
+        if perfil.cargo == 'GERENTE':
+            return Setor.objects.filter(empresa=perfil.empresa)
+
+        return Setor.objects.filter(empresa=perfil.empresa, responsavel=user)
+
+    def perform_create(self, serializer):
+        perfil = self._validar_permissao_gerente()
+        responsavel = serializer.validated_data.get('responsavel')
+
+        self._validar_responsavel(responsavel, perfil.empresa)
+        serializer.save(empresa=perfil.empresa)
+
+    def perform_update(self, serializer):
+        perfil = self._validar_permissao_gerente()
+        responsavel = serializer.validated_data.get('responsavel', serializer.instance.responsavel)
+
+        self._validar_responsavel(responsavel, perfil.empresa)
+        serializer.save(empresa=perfil.empresa)
+
+    def perform_destroy(self, instance):
+        self._validar_permissao_gerente()
+        instance.delete()
 
 
 class ItemEstoqueViewSet(viewsets.ModelViewSet):

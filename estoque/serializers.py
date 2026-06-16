@@ -1,6 +1,17 @@
 from rest_framework import serializers
 from .models import Setor, ItemEstoque, Movimentacao
 
+
+class SetorSerializer(serializers.ModelSerializer):
+    empresa_nome = serializers.CharField(source='empresa.nome_fantasia', read_only=True)
+    responsavel_nome = serializers.CharField(source='responsavel.username', read_only=True)
+
+    class Meta:
+        model = Setor
+        fields = ['id', 'nome', 'empresa', 'empresa_nome', 'responsavel', 'responsavel_nome']
+        read_only_fields = ['empresa']
+
+
 class ItemEstoqueSerializer(serializers.ModelSerializer):
     setor_nome = serializers.CharField(source='setor.nome', read_only=True)
 
