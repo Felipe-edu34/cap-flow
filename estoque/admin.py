@@ -1,32 +1,32 @@
 from django.contrib import admin
-from .models import Empresa, Setor, ItemEstoque, Movimentacao
+from .models import Empresa, Perfil, Setor, ItemEstoque, Movimentacao
 
-# --- REGISTRO DA NOVA TABELA DE EMPRESAS ---
 @admin.register(Empresa)
 class EmpresaAdmin(admin.ModelAdmin):
-    # Mostra o nome da empresa, CNPJ e quem é o usuário dono/administrador dela
-    list_display = ('nome_fantasia', 'cnpj', 'dono')
+    # Mostra essas colunas na tabela principal do Admin
+    list_display = ('nome_fantasia', 'cnpj', 'criado_em')
     search_fields = ('nome_fantasia', 'cnpj')
 
+@admin.register(Perfil)
+class PerfilAdmin(admin.ModelAdmin):
+    list_display = ('usuario', 'cargo', 'empresa')
+    list_filter = ('cargo', 'empresa')
+    search_fields = ('usuario__username',)
 
-# --- ATUALIZAÇÃO DO SETOR (AMARRADO À EMPRESA) ---
 @admin.register(Setor)
 class SetorAdmin(admin.ModelAdmin):
-    # Agora exibe o nome do setor e qual empresa é a dona dele
-    list_display = ('nome', 'empresa')
-    # Cria um filtro lateral para você ver os setores de uma empresa específica
+    list_display = ('nome', 'empresa', 'responsavel')
     list_filter = ('empresa',)
     search_fields = ('nome',)
 
-
 @admin.register(ItemEstoque)
 class ItemEstoqueAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'setor', 'quantidade_atual', 'unidade_medida')
-    list_filter = ('setor',)
+    list_display = ('nome', 'setor', 'quantidade_atual', 'unidade_medida', 'estoque_minimo')
+    list_filter = ('setor__empresa', 'setor') # Filtro duplo lindão
     search_fields = ('nome',)
-
 
 @admin.register(Movimentacao)
 class MovimentacaoAdmin(admin.ModelAdmin):
-    list_display = ('item', 'tipo', 'quantidade_movimentada', 'usuario', 'data_hora')
-    list_filter = ('tipo', 'usuario', 'data_hora')
+    list_display = ('item', 'tipo', 'quantidade_movimentada', 'data_movimentacao')
+    list_filter = ('tipo', 'data_movimentacao', 'item__setor__empresa')
+    search_fields = ('item__nome',)
