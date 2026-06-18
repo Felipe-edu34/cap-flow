@@ -1,14 +1,12 @@
 from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView # <-- NOVA IMPORTAÇÃO
-from rest_framework.response import Response # <-- NOVA IMPORTAÇÃO
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from .models import Setor, ItemEstoque, Movimentacao
 from .serializers import SetorSerializer, ItemEstoqueSerializer, MovimentacaoSerializer
 
-# ... (MANTENHA SUAS CLASSES ItemEstoqueViewSet e MovimentacaoViewSet AQUI) ...
-
-# --- NOVA ROTA DE IDENTIDADE ---
+# --- ROTA DE IDENTIDADE ---
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -36,8 +34,6 @@ class UserProfileView(APIView):
             return Response({
                 "error": "Este usuário não possui um perfil ou empresa vinculada."
             }, status=400)
-
-
 
 
 class SetorViewSet(viewsets.ModelViewSet):
@@ -112,50 +108,87 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         
-        # 1. Se for o Dono do Sistema (Você), vê todos os itens de todas as empresas
         if user.is_superuser:
             return ItemEstoque.objects.all()
             
-        # 2. Tenta descobrir a qual empresa esse usuário pertence
         try:
             perfil = user.perfil
         except:
-            # Se ele não tem Perfil cadastrado, devolve uma lista vazia por segurança
             return ItemEstoque.objects.none()
 
-        # 3. A Regra de Ouro do SaaS
         if perfil.cargo == 'GERENTE':
-            # Gerente vê todos os itens da PRÓPRIA empresa (ignora de outras empresas)
             return ItemEstoque.objects.filter(setor__empresa=perfil.empresa)
         else:
-            # Funcionário vê apenas os itens dos setores onde ele é o responsável
             return ItemEstoque.objects.filter(setor__empresa=perfil.empresa, setor__responsavel=user)
     
     def perform_create(self, serializer):
         user = self.request.user
         
-        # Super-usuários pulam a validação de empresa
         if user.is_superuser:
             serializer.save()
             return
 
         perfil = user.perfil
-        # Pega o objeto do setor que o formulário está tentando associar
         setor_alvo = serializer.validated_data.get('setor')
 
-        # TRAVA DE SEGURANÇA: Se o setor não for da empresa do usuário logado, barra a operação!
         if setor_alvo.empresa != perfil.empresa:
             raise PermissionDenied("Operação violada: Você não pode cadastrar um produto em um setor de outra empresa.")
 
-        # Tudo certo! Salva o produto amarrando o gerente logado se o form não mandou um específico
-        serializer.save()
+        # Salva o item no estoque
+        item = serializer.save()
+
+        # AUTOMATIZAÇÃO: Cria o histórico de entrada inicial se houver estoque cadastrado
+        if item.quantidade_atual > 0:
+            Movimentacao.objects.create(
+                item=item,
+                tipo='ENTRADA',
+                quantidade_movimentada=item.quantidade_atual,
+                observacao="Carga inicializada no cadastro do produto."
+            )
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        
+        if user.is_superuser:
+            serializer.save()
+            return
+
+        perfil = user.perfil
+        setor_alvo = serializer.validated_data.get('setor', serializer.instance.setor)
+
+        if setor_alvo.empresa != perfil.empresa:
+            raise PermissionDenied("Operação violada: Você não pode mover este produto para um setor de outra empresa.")
+
+        # Guarda o estoque antigo para calcular a diferença de movimentação
+        quantidade_anterior = serializer.instance.quantidade_atual
+
+        # Salva as atualizações do produto
+        item = serializer.save()
+
+        # AUTOMATIZAÇÃO: Calcula e gera a auditoria baseado na mudança de quantidade
+        diferenca = item.quantidade_atual - quantidade_anterior
+
+        if diferenca > 0:
+            Movimentacao.objects.create(
+                item=item,
+                tipo='ENTRADA',
+                quantidade_movimentada=diferenca,
+                observacao="Incremento manual via painel do gestor."
+            )
+        elif diferenca < 0:
+            Movimentacao.objects.create(
+                item=item,
+                tipo='SAIDA',
+                quantidade_movimentada=abs(diferenca),
+                observacao="Decremento/Correção manual via painel do gestor."
+            )
+
 
 class MovimentacaoViewSet(viewsets.ModelViewSet):
     serializer_class = MovimentacaoSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Filtra para o usuário não conseguir ver o histórico de movimentação de outras empresas
         user = self.request.user
         if user.is_superuser:
             return Movimentacao.objects.all()
@@ -165,7 +198,7 @@ class MovimentacaoViewSet(viewsets.ModelViewSet):
             return Movimentacao.objects.none()
 
     def perform_create(self, serializer):
-        # 1. Salva a movimentação nova
+        # 1. Salva a movimentação nova (criada manualmente ou por outro endpoint)
         movimentacao = serializer.save()
         
         # 2. Pega o item que está sendo modificado

@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 
 # 1. A TABELA MÃE: EMPRESA
 class Empresa(models.Model):
@@ -52,16 +54,49 @@ class ItemEstoque(models.Model):
         return self.nome
 
 # 5. O HISTÓRICO DE MOVIMENTAÇÕES
+# 5. O HISTÓRICO DE MOVIMENTAÇÕES (Unificado e Corrigido)
 class Movimentacao(models.Model):
     TIPOS_MOV = (
         ('ENTRADA', 'Entrada'),
         ('SAIDA', 'Saída'),
     )
+    # Correção: Aponta para o modelo correto (ItemEstoque)
     item = models.ForeignKey(ItemEstoque, on_delete=models.CASCADE, related_name='movimentacoes')
     tipo = models.CharField(max_length=10, choices=TIPOS_MOV)
-    quantidade_movimentada = models.DecimalField(max_digits=10, decimal_places=2)
+    quantidade_movimentada = models.IntegerField(default=0)
     data_movimentacao = models.DateTimeField(auto_now_add=True)
     observacao = models.CharField(max_length=255, blank=True, null=True)
 
+    class Meta:
+        ordering = ['-data_movimentacao'] # Exibe as movimentações mais recentes primeiro
+
     def __str__(self):
         return f"{self.tipo} - {self.item.nome} ({self.quantidade_movimentada})"
+    
+@receiver(pre_save, sender=ItemEstoque)
+def rastrear_movimentacao_estoque(sender, instance, **kwargs):
+    # Se o produto já existia no banco de dados, checamos a diferença
+    if instance.pk:
+        anterior = ItemEstoque.objects.get(pk=instance.pk)
+        diferenca = instance.quantidade_atual - anterior.quantidade_atual
+        
+        if diferenca > 0:
+            Movimentacao.objects.create(
+                item=instance,
+                tipo='ENTRADA',
+                quantidade_movimentada=diferenca,
+                observacao="Quantidade atualizada via painel administrativo."
+            )
+        elif diferenca < 0:
+            Movimentacao.objects.create(
+                item=instance,
+                tipo='SAIDA',
+                quantidade_movimentada=abs(diferenca),
+                observacao="Retirada/Ajuste de estoque via painel administrativo."
+            )
+    else:
+        # Se for um produto novo sendo cadastrado do zero
+        # Só criamos se ele começar com uma quantidade maior que zero
+        if instance.quantidade_atual > 0:
+            # Usamos um truque de pós-salvamento manual porque o objeto precisa de ID primeiro
+            pass

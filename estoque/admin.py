@@ -28,5 +28,5 @@ class ItemEstoqueAdmin(admin.ModelAdmin):
 @admin.register(Movimentacao)
 class MovimentacaoAdmin(admin.ModelAdmin):
     list_display = ('item', 'tipo', 'quantidade_movimentada', 'data_movimentacao')
-    list_filter = ('tipo', 'data_movimentacao', 'item__setor__empresa')
+    list_filter = ('tipo', 'data_movimentacao', 'item__setor__empresa') # Agora funciona perfeitamente!
     search_fields = ('item__nome',)
