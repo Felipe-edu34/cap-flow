@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import Setor, ItemEstoque, Movimentacao
-
+from .models import Setor, SubSetor, ItemEstoque, Movimentacao
 
 class SetorSerializer(serializers.ModelSerializer):
     empresa_nome = serializers.CharField(source='empresa.nome_fantasia', read_only=True)
@@ -11,22 +10,29 @@ class SetorSerializer(serializers.ModelSerializer):
         fields = ['id', 'nome', 'empresa', 'empresa_nome', 'responsavel', 'responsavel_nome']
         read_only_fields = ['empresa']
 
+# NOVO SERIALIZADOR
+class SubSetorSerializer(serializers.ModelSerializer):
+    setor_pai_nome = serializers.CharField(source='setor_pai.nome', read_only=True)
+
+    class Meta:
+        model = SubSetor
+        fields = ['id', 'nome', 'setor_pai', 'setor_pai_nome']
 
 class ItemEstoqueSerializer(serializers.ModelSerializer):
-    setor_nome = serializers.CharField(source='setor.nome', read_only=True)
-    # Traz o nome do gerente mapeado também para a ficha técnica do modal se precisar
+    # Agora pegamos o nome do subsetor e também rastreamos o nome do setor pai!
+    subsetor_nome = serializers.CharField(source='subsetor.nome', read_only=True)
+    setor_nome = serializers.CharField(source='subsetor.setor_pai.nome', read_only=True)
     gerente_nome = serializers.CharField(source='gerente.username', read_only=True)
 
     class Meta:
         model = ItemEstoque
-        # Adicione 'gerente' e 'gerente_nome' na lista de campos
+        # Atualizamos os campos para incluir o subsetor
         fields = [
             'id', 'nome', 'quantidade_atual', 'unidade_medida', 
-            'estoque_minimo', 'setor', 'setor_nome', 'gerente', 'gerente_nome', 'imagem'
+            'estoque_minimo', 'subsetor', 'subsetor_nome', 'setor_nome', 'gerente', 'gerente_nome', 'imagem'
         ]
 
 class MovimentacaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movimentacao
-        # Atualizamos data_hora para data_movimentacao e removemos o usuario (que não está mais nessa tabela)
         fields = ['id', 'item', 'tipo', 'quantidade_movimentada', 'data_movimentacao', 'observacao']

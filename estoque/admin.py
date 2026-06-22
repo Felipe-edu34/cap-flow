@@ -1,9 +1,8 @@
 from django.contrib import admin
-from .models import Empresa, Perfil, Setor, ItemEstoque, Movimentacao
+from .models import Empresa, Perfil, Setor, SubSetor, ItemEstoque, Movimentacao
 
 @admin.register(Empresa)
 class EmpresaAdmin(admin.ModelAdmin):
-    # Mostra essas colunas na tabela principal do Admin
     list_display = ('nome_fantasia', 'cnpj', 'criado_em')
     search_fields = ('nome_fantasia', 'cnpj')
 
@@ -19,14 +18,23 @@ class SetorAdmin(admin.ModelAdmin):
     list_filter = ('empresa',)
     search_fields = ('nome',)
 
+# --- NOVO: Adicionamos o painel do Sub-setor ---
+@admin.register(SubSetor)
+class SubSetorAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'setor_pai')
+    list_filter = ('setor_pai__empresa', 'setor_pai')
+    search_fields = ('nome',)
+
 @admin.register(ItemEstoque)
 class ItemEstoqueAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'setor', 'quantidade_atual', 'unidade_medida', 'estoque_minimo')
-    list_filter = ('setor__empresa', 'setor') # Filtro duplo lindão
+    # ATENÇÃO: Mudamos de 'setor' para 'subsetor'
+    list_display = ('nome', 'subsetor', 'quantidade_atual', 'unidade_medida', 'estoque_minimo')
+    list_filter = ('subsetor__setor_pai__empresa', 'subsetor__setor_pai', 'subsetor') 
     search_fields = ('nome',)
 
 @admin.register(Movimentacao)
 class MovimentacaoAdmin(admin.ModelAdmin):
     list_display = ('item', 'tipo', 'quantidade_movimentada', 'data_movimentacao')
-    list_filter = ('tipo', 'data_movimentacao', 'item__setor__empresa') # Agora funciona perfeitamente!
+    # ATENÇÃO: O caminho do filtro agora passa pelo subsetor e setor pai
+    list_filter = ('tipo', 'data_movimentacao', 'item__subsetor__setor_pai__empresa') 
     search_fields = ('item__nome',)
