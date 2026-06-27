@@ -12,17 +12,20 @@ class Empresa(models.Model):
         return self.nome_fantasia
 
 class Perfil(models.Model):
+    # Atualize para bater com as opções do React Native!
     TIPOS_CARGO = (
-        ('GERENTE', 'Gerente'),
-        ('FUNCIONARIO', 'Funcionário'),
+        ('ADMINISTRADOR', 'Administrador'),
+        ('GESTOR', 'Gestor'),
+        ('OPERADOR', 'Operador'),
+        ('GERENTE', 'Gerente'), # mantido caso use em outra parte
     )
     usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
-    cargo = models.CharField(max_length=20, choices=TIPOS_CARGO, default='FUNCIONARIO')
+    cargo = models.CharField(max_length=20, choices=TIPOS_CARGO, default='OPERADOR') # padrão operador
 
     def __str__(self):
         return f"{self.usuario.username} | {self.cargo} ({self.empresa.nome_fantasia})"
-
+    
 class Setor(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
     nome = models.CharField(max_length=100)
@@ -76,3 +79,26 @@ def rastrear_movimentacao_estoque(sender, instance, **kwargs):
             Movimentacao.objects.create(item=instance, tipo='ENTRADA', quantidade_movimentada=diferenca, observacao="Quantidade atualizada.")
         elif diferenca < 0:
             Movimentacao.objects.create(item=instance, tipo='SAIDA', quantidade_movimentada=abs(diferenca), observacao="Retirada/Ajuste.")
+
+
+
+class Funcionario(models.Model):
+    CARGOS_CHOICES = [
+        ('ADMINISTRADOR', 'Administrador'),
+        ('GESTOR', 'Gestor'),
+        ('OPERADOR', 'Operador'),
+    ]
+    STATUS_CHOICES = [
+        ('ATIVO', 'Ativo'),
+        ('INATIVO', 'Inativo'),
+    ]
+
+    nome = models.CharField(max_length=255)
+    email = models.EmailField(unique=True)
+    senha = models.CharField(max_length=255)  # No futuro vamos usar make_password aqui para segurança!
+    cargo = models.CharField(max_length=50, choices=CARGOS_CHOICES, default='OPERADOR')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ATIVO')
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.nome

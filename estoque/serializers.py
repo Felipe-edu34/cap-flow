@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Setor, SubSetor, ItemEstoque, Movimentacao
+from .models import Setor, SubSetor, ItemEstoque, Movimentacao, Funcionario
 
 class SetorSerializer(serializers.ModelSerializer):
     empresa_nome = serializers.CharField(source='empresa.nome_fantasia', read_only=True)
@@ -36,3 +36,9 @@ class MovimentacaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movimentacao
         fields = ['id', 'item', 'tipo', 'quantidade_movimentada', 'data_movimentacao', 'observacao']
+
+
+class FuncionarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Funcionario
+        fields = '__all__'       

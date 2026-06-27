@@ -1,10 +1,12 @@
 from rest_framework import viewsets
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.contrib.auth.models import User
+from django.db import transaction
 from .serializers import SetorSerializer, SubSetorSerializer, ItemEstoqueSerializer, MovimentacaoSerializer
-from .models import Setor, SubSetor, ItemEstoque, Movimentacao
+from .models import Setor, SubSetor, ItemEstoque, Movimentacao, Perfil # Certifique-se de que Perfil está importado aqui
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -186,3 +188,88 @@ class MovimentacaoViewSet(viewsets.ModelViewSet):
             item.quantidade_atual -= movimentacao.quantidade_movimentada
             
         item.save()
+
+
+# 🚨 NOVA VIEWSET DE FUNCIONÁRIOS ADICIONADA 🚨
+# 🚨 SUBISTITUA APENAS A SUA FuncionariosViewSet POR ESTA CORRIGIDA 🚨
+class FuncionariosViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def _get_perfil(self):
+        try:
+            return self.request.user.perfil
+        except:
+            raise PermissionDenied("Este usuário não possui um perfil vinculado.")
+
+    def list(self, request):
+        user = request.user
+        perfil_logado = self._get_perfil()
+
+        # Apenas gerentes ou superusuários listam funcionários
+        if perfil_logado.cargo != 'GERENTE' and not user.is_superuser:
+            raise PermissionDenied("Acesso negado.")
+
+        # 🛠️ CORREÇÃO: Trocado 'user' por 'usuario'
+        perfis_empresa = Perfil.objects.filter(empresa=perfil_logado.empresa).select_related('usuario')
+        
+        dados = []
+        for p in perfis_empresa:
+            # 🛠️ CORREÇÃO: Trocado p.user por p.usuario
+            if p.usuario == user:
+                continue
+            dados.append({
+                "id": p.usuario.id,
+                "nome": f"{p.usuario.first_name} {p.usuario.last_name}".strip() or p.usuario.username,
+                "email": p.usuario.email,
+                "cargo": p.cargo,
+                "status": "ATIVO" if p.usuario.is_active else "INATIVO"
+            })
+        return Response(dados)
+
+    def create(self, request):
+        perfil_logado = self._get_perfil()
+
+        # Modificado para permitir que GERENTE também cadastre novos membros
+        if perfil_logado.cargo != 'GERENTE' and not request.user.is_superuser:
+            raise PermissionDenied("Apenas gerentes podem cadastrar novos funcionários.")
+
+        dados = request.data
+        email = dados.get('email')
+        nome = dados.get('nome', '')
+        senha = dados.get('senha')
+        cargo_escolhido = dados.get('cargo', 'OPERADOR')
+
+        if not email or not senha or not nome:
+            raise ValidationError({"erro": "Nome, e-mail e senha são obrigatórios."})
+
+        if User.objects.filter(username=email).exists() or User.objects.filter(email=email).exists():
+            raise ValidationError({"erro": "Este e-mail já está sendo utilizado por outro usuário."})
+
+        # Divide o nome para salvar no padrão do Django (first_name / last_name)
+        partes_nome = nome.split(' ', 1)
+        primeiro_nome = partes_nome[0]
+        sobrenome = partes_nome[1] if len(partes_nome) > 1 else ''
+
+        with transaction.atomic():
+            novo_usuario = User.objects.create_user(
+                username=email, 
+                email=email,
+                password=senha,
+                first_name=primeiro_nome,
+                last_name=sobrenome
+            )
+
+            # 🛠️ CORREÇÃO: Alterado de 'user=' para 'usuario=' conforme seu Perfil model
+            Perfil.objects.create(
+                usuario=novo_usuario,
+                empresa=perfil_logado.empresa,
+                cargo=cargo_escolhido
+            )
+
+        return Response({
+            "id": novo_usuario.id,
+            "nome": nome,
+            "email": email,
+            "cargo": cargo_escolhido,
+            "status": "ATIVO"
+        }, status=201)
