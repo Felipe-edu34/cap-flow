@@ -3,12 +3,18 @@ from .models import Setor, SubSetor, ItemEstoque, Movimentacao, Funcionario
 
 class SetorSerializer(serializers.ModelSerializer):
     empresa_nome = serializers.CharField(source='empresa.nome_fantasia', read_only=True)
-    responsavel_nome = serializers.CharField(source='responsavel.username', read_only=True)
+    # 1. Trocamos o CharField por um SerializerMethodField para lidar com a lista
+    responsaveis_nomes = serializers.SerializerMethodField()
 
     class Meta:
         model = Setor
-        fields = ['id', 'nome', 'empresa', 'empresa_nome', 'responsavel', 'responsavel_nome']
+        # 2. Atualizamos os nomes dos campos para bater com o banco de dados
+        fields = ['id', 'nome', 'empresa', 'empresa_nome', 'responsaveis', 'responsaveis_nomes']
         read_only_fields = ['empresa']
+
+    # 3. Essa função pega todas as pessoas ligadas ao setor e cria uma lista de nomes
+    def get_responsaveis_nomes(self, obj):
+        return [user.username for user in obj.responsaveis.all()]
 
 # NOVO SERIALIZADOR
 class SubSetorSerializer(serializers.ModelSerializer):

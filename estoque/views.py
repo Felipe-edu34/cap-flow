@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from django.contrib.auth.models import User
 from django.db import transaction
 from .serializers import SetorSerializer, SubSetorSerializer, ItemEstoqueSerializer, MovimentacaoSerializer
-from .models import Setor, SubSetor, ItemEstoque, Movimentacao, Perfil # Certifique-se de que Perfil está importado aqui
+from .models import Setor, SubSetor, ItemEstoque, Movimentacao, Perfil
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -49,15 +49,17 @@ class SetorViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Apenas gerentes podem cadastrar ou alterar setores.")
         return perfil
 
-    def _validar_responsavel(self, responsavel, empresa):
-        if responsavel is None:
+    # 🛠️ ATUALIZADO: Agora valida uma LISTA de responsáveis (ManyToManyField)
+    def _validar_responsaveis(self, responsaveis, empresa):
+        if not responsaveis:
             return
-        try:
-            perfil_responsavel = responsavel.perfil
-        except:
-            raise PermissionDenied("O responsável informado não possui um perfil vinculado.")
-        if perfil_responsavel.empresa != empresa:
-            raise PermissionDenied("O responsável precisa pertencer à mesma empresa do gerente.")
+        for resp in responsaveis:
+            try:
+                perfil_responsavel = resp.perfil
+            except:
+                raise PermissionDenied(f"O responsável {resp.username} não possui um perfil vinculado.")
+            if perfil_responsavel.empresa != empresa:
+                raise PermissionDenied(f"O responsável {resp.username} precisa pertencer à mesma empresa do gerente.")
 
     def get_queryset(self):
         user = self.request.user
@@ -70,18 +72,23 @@ class SetorViewSet(viewsets.ModelViewSet):
 
         if perfil.cargo == 'GERENTE':
             return Setor.objects.filter(empresa=perfil.empresa)
-        return Setor.objects.filter(empresa=perfil.empresa, responsavel=user)
+        
+        # 🛠️ CORRIGIDO: de responsavel=user para responsaveis=user
+        return Setor.objects.filter(empresa=perfil.empresa, responsaveis=user)
 
     def perform_create(self, serializer):
         perfil = self._validar_permissao_gerente()
-        responsavel = serializer.validated_data.get('responsavel')
-        self._validar_responsavel(responsavel, perfil.empresa)
+        # 🛠️ CORRIGIDO: Captura a lista de responsáveis informados
+        responsaveis = serializer.validated_data.get('responsaveis', [])
+        self._validar_responsaveis(responsaveis, perfil.empresa)
         serializer.save(empresa=perfil.empresa)
 
     def perform_update(self, serializer):
         perfil = self._validar_permissao_gerente()
-        responsavel = serializer.validated_data.get('responsavel', serializer.instance.responsavel)
-        self._validar_responsavel(responsavel, perfil.empresa)
+        # 🛠️ CORRIGIDO: Se vier uma nova lista no PATCH, valida ela
+        responsaveis = serializer.validated_data.get('responsaveis', None)
+        if responsaveis is not None:
+            self._validar_responsaveis(responsaveis, perfil.empresa)
         serializer.save(empresa=perfil.empresa)
 
     def perform_destroy(self, instance):
@@ -121,7 +128,8 @@ class ItemEstoqueViewSet(viewsets.ModelViewSet):
         if perfil.cargo == 'GERENTE':
             return ItemEstoque.objects.filter(subsetor__setor_pai__empresa=perfil.empresa)
         else:
-            return ItemEstoque.objects.filter(subsetor__setor_pai__empresa=perfil.empresa, subsetor__setor_pai__responsavel=user)
+            # 🛠️ CORRIGIDO: Atualizado o filtro para bater com o novo campo 'responsaveis' do setor
+            return ItemEstoque.objects.filter(subsetor__setor_pai__empresa=perfil.empresa, subsetor__setor_pai__responsaveis=user)
     
     def perform_create(self, serializer):
         user = self.request.user
@@ -190,8 +198,6 @@ class MovimentacaoViewSet(viewsets.ModelViewSet):
         item.save()
 
 
-# 🚨 NOVA VIEWSET DE FUNCIONÁRIOS ADICIONADA 🚨
-# 🚨 SUBISTITUA APENAS A SUA FuncionariosViewSet POR ESTA CORRIGIDA 🚨
 class FuncionariosViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -205,16 +211,13 @@ class FuncionariosViewSet(viewsets.ViewSet):
         user = request.user
         perfil_logado = self._get_perfil()
 
-        # Apenas gerentes ou superusuários listam funcionários
         if perfil_logado.cargo != 'GERENTE' and not user.is_superuser:
             raise PermissionDenied("Acesso negado.")
 
-        # 🛠️ CORREÇÃO: Trocado 'user' por 'usuario'
         perfis_empresa = Perfil.objects.filter(empresa=perfil_logado.empresa).select_related('usuario')
         
         dados = []
         for p in perfis_empresa:
-            # 🛠️ CORREÇÃO: Trocado p.user por p.usuario
             if p.usuario == user:
                 continue
             dados.append({
@@ -229,7 +232,6 @@ class FuncionariosViewSet(viewsets.ViewSet):
     def create(self, request):
         perfil_logado = self._get_perfil()
 
-        # Modificado para permitir que GERENTE também cadastre novos membros
         if perfil_logado.cargo != 'GERENTE' and not request.user.is_superuser:
             raise PermissionDenied("Apenas gerentes podem cadastrar novos funcionários.")
 
@@ -245,7 +247,6 @@ class FuncionariosViewSet(viewsets.ViewSet):
         if User.objects.filter(username=email).exists() or User.objects.filter(email=email).exists():
             raise ValidationError({"erro": "Este e-mail já está sendo utilizado por outro usuário."})
 
-        # Divide o nome para salvar no padrão do Django (first_name / last_name)
         partes_nome = nome.split(' ', 1)
         primeiro_nome = partes_nome[0]
         sobrenome = partes_nome[1] if len(partes_nome) > 1 else ''
@@ -259,7 +260,6 @@ class FuncionariosViewSet(viewsets.ViewSet):
                 last_name=sobrenome
             )
 
-            # 🛠️ CORREÇÃO: Alterado de 'user=' para 'usuario=' conforme seu Perfil model
             Perfil.objects.create(
                 usuario=novo_usuario,
                 empresa=perfil_logado.empresa,

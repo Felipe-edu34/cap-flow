@@ -14,9 +14,18 @@ class PerfilAdmin(admin.ModelAdmin):
 
 @admin.register(Setor)
 class SetorAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'empresa', 'responsavel')
-    list_filter = ('empresa',)
-    search_fields = ('nome',)
+    # 1. Tire o 'responsavel' daqui e coloque a função que vamos criar abaixo:
+    list_display = ('id', 'nome', 'empresa', 'get_responsaveis') 
+    
+    # (Mantenha os outros campos como search_fields, se tiver)
+
+    # 2. Adicione esta função para mostrar a listinha de nomes na tela do Admin:
+    def get_responsaveis(self, obj):
+        # Pega todos os responsáveis e junta os nomes com vírgula
+        return ", ".join([user.username for user in obj.responsaveis.all()])
+    
+    # Dá um título bonito para a coluna no painel Admin
+    get_responsaveis.short_description = 'Responsáveis'
 
 # --- NOVO: Adicionamos o painel do Sub-setor ---
 @admin.register(SubSetor)

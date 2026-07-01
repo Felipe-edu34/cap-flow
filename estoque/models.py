@@ -29,7 +29,10 @@ class Perfil(models.Model):
 class Setor(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
     nome = models.CharField(max_length=100)
-    responsavel = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # 🔥 A MÁGICA ACONTECE AQUI:
+    # Trocamos de 'responsavel' (ForeignKey) para 'responsaveis' (ManyToManyField)
+    responsaveis = models.ManyToManyField(User, blank=True, related_name='setores_gerenciados')
 
     def __str__(self):
         return f"{self.nome} - {self.empresa.nome_fantasia}"
