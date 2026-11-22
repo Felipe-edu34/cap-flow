@@ -131,9 +131,9 @@ if IS_PRODUCTION:
         conn_health_checks=True,
         ssl_require=True,
     )
-elif os.getenv('DATABASE_URL'):
+elif os.getenv('LOCAL_DATABASE_URL'):
     default_db = dj_database_url.parse(
-        os.getenv('DATABASE_URL'),
+        os.getenv('LOCAL_DATABASE_URL'),
         conn_max_age=DB_CONN_MAX_AGE,
         conn_health_checks=True,
     )
@@ -211,11 +211,17 @@ JAZZMIN_SETTINGS = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.TokenAuthentication',  # <--- A MÁGICA ESTÁ NESTA LINHA
+        'estoque.supabase_auth.SupabaseJWTAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ),
 }
+
+# --- Supabase Auth (GoTrue) --------------------------------------------------
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://ltqyjayrehyyybdvvuyn.supabase.co')
+SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
+SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

@@ -21,6 +21,7 @@ Thumbs.db
 .env
 .env.local
 
-# Artefatos de teste
+# Artefatos de teste e uploads locais
 .mutmut-cache
 .pytest_cache/
+media/
