@@ -15,4 +15,4 @@ __pycache__/
 # Configurações do VS Code ou do sistema operacional
 .vscode/
 .DS_Store
-Thumbs.db
+Thumbs.db.mutmut-cache
