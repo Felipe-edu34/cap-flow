@@ -1,0 +1,27 @@
+name: capflow
+
+services:
+  db:
+    # Mantenha a versão major alinhada à do projeto no Supabase
+    # (Dashboard > Project Settings > Infrastructure).
+    image: postgres:16-alpine
+    container_name: capflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-capflow}
+      POSTGRES_USER: ${DB_USER:-capflow}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-capflow_dev_password}
+      TZ: America/Sao_Paulo
+    ports:
+      # Exposto só no localhost da máquina; troque DB_PORT no .env se a 5432 estiver ocupada.
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - capflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  capflow_pgdata:

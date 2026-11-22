@@ -13,20 +13,53 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Carrega o .env da raiz do projeto. Variáveis já definidas no ambiente (ex.: no
+# provedor de hospedagem ou inline no terminal) têm prioridade sobre o arquivo.
+load_dotenv(BASE_DIR / '.env')
+
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None or value.strip() == '':
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def env_list(name, default=''):
+    return [item.strip() for item in os.getenv(name, default).split(',') if item.strip()]
+
+
+# Ambiente de execução: 'local' (PostgreSQL via Docker) ou 'production' (Supabase).
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'local').strip().lower()
+if ENVIRONMENT not in {'local', 'production'}:
+    raise ImproperlyConfigured("ENVIRONMENT deve ser 'local' ou 'production'.")
+IS_PRODUCTION = ENVIRONMENT == 'production'
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ej@$_+l2#e_)4m$w%@7db79wx#4zwreq)b93)ls1zgn-4)b-n6'
+# A chave insegura abaixo só é aceita no ambiente local.
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if IS_PRODUCTION:
+        raise ImproperlyConfigured('DJANGO_SECRET_KEY é obrigatória em produção.')
+    SECRET_KEY = 'django-insecure-ej@$_+l2#e_)4m$w%@7db79wx#4zwreq)b93)ls1zgn-4)b-n6'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool('DJANGO_DEBUG', default=not IS_PRODUCTION)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', default='' if IS_PRODUCTION else '*')
+if IS_PRODUCTION and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured('DJANGO_ALLOWED_HOSTS é obrigatória em produção.')
 
 
 # Application definition
@@ -78,13 +111,53 @@ WSGI_APPLICATION = 'setup.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+#
+# Os dois ambientes usam PostgreSQL, evitando diferenças de dialeto entre
+# desenvolvimento e produção (o SQLite não aplica max_length, por exemplo).
+#
+# - local:      PostgreSQL do docker-compose, sem SSL. Usa DATABASE_URL se
+#               definida; senão monta a conexão a partir de DB_NAME/DB_USER/...
+# - production: Supabase via DATABASE_URL (obrigatória), sempre com SSL.
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DB_CONN_MAX_AGE = int(os.getenv('DB_CONN_MAX_AGE') or '60')
+
+if IS_PRODUCTION:
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    if not DATABASE_URL:
+        raise ImproperlyConfigured('DATABASE_URL é obrigatória em produção (string de conexão do Supabase).')
+    default_db = dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=DB_CONN_MAX_AGE,
+        conn_health_checks=True,
+        ssl_require=True,
+    )
+elif os.getenv('DATABASE_URL'):
+    default_db = dj_database_url.parse(
+        os.getenv('DATABASE_URL'),
+        conn_max_age=DB_CONN_MAX_AGE,
+        conn_health_checks=True,
+    )
+else:
+    default_db = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'capflow'),
+        'USER': os.getenv('DB_USER', 'capflow'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'capflow_dev_password'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
+        'CONN_MAX_AGE': DB_CONN_MAX_AGE,
+        'CONN_HEALTH_CHECKS': True,
     }
-}
+
+# O Transaction Pooler do Supabase (Supavisor, porta 6543) troca a conexão física
+# a cada transação, o que quebra server-side cursors (usados por .iterator()).
+# Prepared statements já vêm desativados por padrão no backend psycopg 3 do Django.
+default_db['DISABLE_SERVER_SIDE_CURSORS'] = env_bool(
+    'DB_DISABLE_SERVER_SIDE_CURSORS',
+    default=str(default_db.get('PORT', '')) == '6543',
+)
+
+DATABASES = {'default': default_db}
 
 
 # Password validation

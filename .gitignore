@@ -15,4 +15,12 @@ __pycache__/
 # Configurações do VS Code ou do sistema operacional
 .vscode/
 .DS_Store
-Thumbs.db.mutmut-cache
+Thumbs.db
+
+# Variáveis de ambiente com segredos (o .env.example é versionado)
+.env
+.env.local
+
+# Artefatos de teste
+.mutmut-cache
+.pytest_cache/
